@@ -1071,7 +1071,6 @@ static const struct snd_soc_component_driver soc_component_dev_rt1015 = {
 	.set_pll = rt1015_set_component_pll,
 	.use_pmdown_time	= 1,
 	.endianness		= 1,
-	.non_legacy_dai_naming	= 1,
 };
 
 static const struct regmap_config rt1015_regmap = {
@@ -1171,7 +1170,7 @@ static struct i2c_driver rt1015_i2c_driver = {
 		.of_match_table = of_match_ptr(rt1015_of_match),
 		.acpi_match_table = ACPI_PTR(rt1015_acpi_match),
 	},
-	.probe_new = rt1015_i2c_probe,
+	.probe = rt1015_i2c_probe,
 	.shutdown = rt1015_i2c_shutdown,
 	.id_table = rt1015_i2c_id,
 };

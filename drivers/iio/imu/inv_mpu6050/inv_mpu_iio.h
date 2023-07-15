@@ -79,6 +79,7 @@ enum inv_devices {
 	INV_ICM20608D,
 	INV_ICM20609,
 	INV_ICM20689,
+	INV_ICM20600,
 	INV_ICM20602,
 	INV_ICM20690,
 	INV_IAM20680,
@@ -204,7 +205,7 @@ struct inv_mpu6050_state {
 	s32 magn_raw_to_gauss[3];
 	struct iio_mount_matrix magn_orient;
 	unsigned int suspended_sensors;
-	u8 data[INV_MPU6050_OUTPUT_DATA_SIZE] ____cacheline_aligned;
+	u8 data[INV_MPU6050_OUTPUT_DATA_SIZE] __aligned(IIO_DMA_MINALIGN);
 };
 
 /*register and associated bit definition*/
@@ -398,6 +399,7 @@ struct inv_mpu6050_state {
 #define INV_ICM20608D_WHOAMI_VALUE		0xAE
 #define INV_ICM20609_WHOAMI_VALUE		0xA6
 #define INV_ICM20689_WHOAMI_VALUE		0x98
+#define INV_ICM20600_WHOAMI_VALUE		0x11
 #define INV_ICM20602_WHOAMI_VALUE		0x12
 #define INV_ICM20690_WHOAMI_VALUE		0x20
 #define INV_IAM20680_WHOAMI_VALUE		0xA9

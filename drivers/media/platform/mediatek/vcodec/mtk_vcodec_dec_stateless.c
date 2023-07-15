@@ -107,19 +107,109 @@ static const struct mtk_stateless_control mtk_stateless_controls[] = {
 		},
 		.codec_type = V4L2_PIX_FMT_VP9_FRAME,
 	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_HEVC_SPS,
+		},
+		.codec_type = V4L2_PIX_FMT_HEVC_SLICE,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_HEVC_PPS,
+		},
+		.codec_type = V4L2_PIX_FMT_HEVC_SLICE,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_HEVC_SCALING_MATRIX,
+		},
+		.codec_type = V4L2_PIX_FMT_HEVC_SLICE,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_HEVC_DECODE_PARAMS,
+		},
+		.codec_type = V4L2_PIX_FMT_HEVC_SLICE,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_HEVC_PROFILE,
+			.def = V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN,
+			.max = V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10,
+			.menu_skip_mask =
+				BIT(V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_STILL_PICTURE),
+		},
+		.codec_type = V4L2_PIX_FMT_HEVC_SLICE,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_HEVC_DECODE_MODE,
+			.min = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+			.def = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+			.max = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+		},
+		.codec_type = V4L2_PIX_FMT_HEVC_SLICE,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_HEVC_START_CODE,
+			.min = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
+			.def = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
+			.max = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
+		},
+		.codec_type = V4L2_PIX_FMT_HEVC_SLICE,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_AV1_SEQUENCE,
+
+		},
+		.codec_type = V4L2_PIX_FMT_AV1_FRAME,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_AV1_FRAME,
+
+		},
+		.codec_type = V4L2_PIX_FMT_AV1_FRAME,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_STATELESS_AV1_TILE_GROUP_ENTRY,
+			.dims = { V4L2_AV1_MAX_TILE_COUNT },
+
+		},
+		.codec_type = V4L2_PIX_FMT_AV1_FRAME,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_AV1_PROFILE,
+			.min = V4L2_MPEG_VIDEO_AV1_PROFILE_MAIN,
+			.def = V4L2_MPEG_VIDEO_AV1_PROFILE_MAIN,
+			.max = V4L2_MPEG_VIDEO_AV1_PROFILE_MAIN,
+		},
+		.codec_type = V4L2_PIX_FMT_AV1_FRAME,
+	},
+	{
+		.cfg = {
+			.id = V4L2_CID_MPEG_VIDEO_AV1_LEVEL,
+			.min = V4L2_MPEG_VIDEO_AV1_LEVEL_2_0,
+			.def = V4L2_MPEG_VIDEO_AV1_LEVEL_4_0,
+			.max = V4L2_MPEG_VIDEO_AV1_LEVEL_5_1,
+		},
+		.codec_type = V4L2_PIX_FMT_AV1_FRAME,
+	},
 };
 
 #define NUM_CTRLS ARRAY_SIZE(mtk_stateless_controls)
 
-static struct mtk_video_fmt mtk_video_formats[5];
-static struct mtk_codec_framesizes mtk_vdec_framesizes[3];
+static struct mtk_video_fmt mtk_video_formats[7];
 
 static struct mtk_video_fmt default_out_format;
 static struct mtk_video_fmt default_cap_format;
 static unsigned int num_formats;
-static unsigned int num_framesizes;
 
-static struct v4l2_frmsize_stepwise stepwise_fhd = {
+static const struct v4l2_frmsize_stepwise stepwise_fhd = {
 	.min_width = MTK_VDEC_MIN_W,
 	.max_width = MTK_VDEC_MAX_W,
 	.step_width = 16,
@@ -140,10 +230,13 @@ static void mtk_vdec_stateless_cap_to_disp(struct mtk_vcodec_ctx *ctx, int error
 		state = VB2_BUF_STATE_DONE;
 
 	vb2_dst = v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
-	v4l2_m2m_buf_done(vb2_dst, state);
-
-	mtk_v4l2_debug(2, "free frame buffer id:%d to done list",
-		       vb2_dst->vb2_buf.index);
+	if (vb2_dst) {
+		v4l2_m2m_buf_done(vb2_dst, state);
+		mtk_v4l2_debug(2, "free frame buffer id:%d to done list",
+			       vb2_dst->vb2_buf.index);
+	} else {
+		mtk_v4l2_err("dst buffer is NULL");
+	}
 
 	if (src_buf_req)
 		v4l2_ctrl_request_complete(src_buf_req, &ctx->ctrl_hdl);
@@ -239,7 +332,7 @@ static void mtk_vdec_worker(struct work_struct *work)
 		mtk_v4l2_err("vb2 buffer media request is NULL");
 
 	ret = vdec_if_decode(ctx, bs_src, NULL, &res_chg);
-	if (ret) {
+	if (ret && ret != -EAGAIN) {
 		mtk_v4l2_err(" <===[%d], src_buf[%d] sz=0x%zx pts=%llu vdec_if_decode() ret=%d res_chg=%d===>",
 			     ctx->id, vb2_src->index, bs_src->size,
 			     vb2_src->timestamp, ret, res_chg);
@@ -252,13 +345,15 @@ static void mtk_vdec_worker(struct work_struct *work)
 
 	state = ret ? VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE;
 	if (!IS_VDEC_LAT_ARCH(dev->vdec_pdata->hw_arch) ||
-	    ctx->current_codec == V4L2_PIX_FMT_VP8_FRAME || ret) {
+	    ctx->current_codec == V4L2_PIX_FMT_VP8_FRAME) {
 		v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx, state);
 		if (src_buf_req)
 			v4l2_ctrl_request_complete(src_buf_req, &ctx->ctrl_hdl);
 	} else {
-		v4l2_m2m_src_buf_remove(ctx->m2m_ctx);
-		v4l2_m2m_buf_done(vb2_v4l2_src, state);
+		if (ret != -EAGAIN) {
+			v4l2_m2m_src_buf_remove(ctx->m2m_ctx);
+			v4l2_m2m_buf_done(vb2_v4l2_src, state);
+		}
 		v4l2_m2m_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx);
 	}
 }
@@ -348,19 +443,25 @@ static void mtk_vcodec_add_formats(unsigned int fourcc,
 	struct mtk_vcodec_dev *dev = ctx->dev;
 	const struct mtk_vcodec_dec_pdata *pdata = dev->vdec_pdata;
 	int count_formats = *pdata->num_formats;
-	int count_framesizes = *pdata->num_framesizes;
 
 	switch (fourcc) {
 	case V4L2_PIX_FMT_H264_SLICE:
 	case V4L2_PIX_FMT_VP8_FRAME:
 	case V4L2_PIX_FMT_VP9_FRAME:
+	case V4L2_PIX_FMT_HEVC_SLICE:
+	case V4L2_PIX_FMT_AV1_FRAME:
 		mtk_video_formats[count_formats].fourcc = fourcc;
 		mtk_video_formats[count_formats].type = MTK_FMT_DEC;
 		mtk_video_formats[count_formats].num_planes = 1;
+		mtk_video_formats[count_formats].frmsize = stepwise_fhd;
 
-		mtk_vdec_framesizes[count_framesizes].fourcc = fourcc;
-		mtk_vdec_framesizes[count_framesizes].stepwise = stepwise_fhd;
-		num_framesizes++;
+		if (!(ctx->dev->dec_capability & VCODEC_CAPABILITY_4K_DISABLED) &&
+		    fourcc != V4L2_PIX_FMT_VP8_FRAME) {
+			mtk_video_formats[count_formats].frmsize.max_width =
+				VCODEC_DEC_4K_CODED_WIDTH;
+			mtk_video_formats[count_formats].frmsize.max_height =
+				VCODEC_DEC_4K_CODED_HEIGHT;
+		}
 		break;
 	case V4L2_PIX_FMT_MM21:
 	case V4L2_PIX_FMT_MT21C:
@@ -374,23 +475,23 @@ static void mtk_vcodec_add_formats(unsigned int fourcc,
 	}
 
 	num_formats++;
-	mtk_v4l2_debug(3, "num_formats: %d num_frames:%d dec_capability: 0x%x",
-		       count_formats, count_framesizes, ctx->dev->dec_capability);
+	mtk_v4l2_debug(3, "num_formats: %d dec_capability: 0x%x",
+		       count_formats, ctx->dev->dec_capability);
 }
 
 static void mtk_vcodec_get_supported_formats(struct mtk_vcodec_ctx *ctx)
 {
 	int cap_format_count = 0, out_format_count = 0;
 
-	if (num_formats && num_framesizes)
+	if (num_formats)
 		return;
 
-	if (ctx->dev->dec_capability & MTK_VDEC_FORMAT_MM21) {
-		mtk_vcodec_add_formats(V4L2_PIX_FMT_MM21, ctx);
-		cap_format_count++;
-	}
 	if (ctx->dev->dec_capability & MTK_VDEC_FORMAT_MT21C) {
 		mtk_vcodec_add_formats(V4L2_PIX_FMT_MT21C, ctx);
+		cap_format_count++;
+	}
+	if (ctx->dev->dec_capability & MTK_VDEC_FORMAT_MM21) {
+		mtk_vcodec_add_formats(V4L2_PIX_FMT_MM21, ctx);
 		cap_format_count++;
 	}
 	if (ctx->dev->dec_capability & MTK_VDEC_FORMAT_H264_SLICE) {
@@ -403,6 +504,14 @@ static void mtk_vcodec_get_supported_formats(struct mtk_vcodec_ctx *ctx)
 	}
 	if (ctx->dev->dec_capability & MTK_VDEC_FORMAT_VP9_FRAME) {
 		mtk_vcodec_add_formats(V4L2_PIX_FMT_VP9_FRAME, ctx);
+		out_format_count++;
+	}
+	if (ctx->dev->dec_capability & MTK_VDEC_FORMAT_HEVC_FRAME) {
+		mtk_vcodec_add_formats(V4L2_PIX_FMT_HEVC_SLICE, ctx);
+		out_format_count++;
+	}
+	if (ctx->dev->dec_capability & MTK_VDEC_FORMAT_AV1_FRAME) {
+		mtk_vcodec_add_formats(V4L2_PIX_FMT_AV1_FRAME, ctx);
 		out_format_count++;
 	}
 
@@ -461,8 +570,6 @@ const struct mtk_vcodec_dec_pdata mtk_vdec_8183_pdata = {
 	.num_formats = &num_formats,
 	.default_out_fmt = &default_out_format,
 	.default_cap_fmt = &default_cap_format,
-	.vdec_framesizes = mtk_vdec_framesizes,
-	.num_framesizes = &num_framesizes,
 	.uses_stateless_api = true,
 	.worker = mtk_vdec_worker,
 	.flush_decoder = mtk_vdec_flush_decoder,
@@ -481,8 +588,6 @@ const struct mtk_vcodec_dec_pdata mtk_lat_sig_core_pdata = {
 	.num_formats = &num_formats,
 	.default_out_fmt = &default_out_format,
 	.default_cap_fmt = &default_cap_format,
-	.vdec_framesizes = mtk_vdec_framesizes,
-	.num_framesizes = &num_framesizes,
 	.uses_stateless_api = true,
 	.worker = mtk_vdec_worker,
 	.flush_decoder = mtk_vdec_flush_decoder,
@@ -500,8 +605,6 @@ const struct mtk_vcodec_dec_pdata mtk_vdec_single_core_pdata = {
 	.num_formats = &num_formats,
 	.default_out_fmt = &default_out_format,
 	.default_cap_fmt = &default_cap_format,
-	.vdec_framesizes = mtk_vdec_framesizes,
-	.num_framesizes = &num_framesizes,
 	.uses_stateless_api = true,
 	.worker = mtk_vdec_worker,
 	.flush_decoder = mtk_vdec_flush_decoder,

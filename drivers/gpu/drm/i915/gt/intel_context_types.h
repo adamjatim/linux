@@ -40,7 +40,10 @@ struct intel_context_ops {
 
 	int (*alloc)(struct intel_context *ce);
 
-	void (*ban)(struct intel_context *ce, struct i915_request *rq);
+	void (*revoke)(struct intel_context *ce, struct i915_request *rq,
+		       unsigned int preempt_timeout_ms);
+
+	void (*close)(struct intel_context *ce);
 
 	int (*pre_pin)(struct intel_context *ce, struct i915_gem_ww_ctx *ww, void **vaddr);
 	int (*pin)(struct intel_context *ce, void *vaddr);
@@ -54,6 +57,8 @@ struct intel_context_ops {
 	void (*exit)(struct intel_context *ce);
 
 	void (*sched_disable)(struct intel_context *ce);
+
+	void (*update_stats)(struct intel_context *ce);
 
 	void (*reset)(struct intel_context *ce);
 	void (*destroy)(struct kref *kref);
@@ -122,6 +127,7 @@ struct intel_context {
 #define CONTEXT_GUC_INIT		10
 #define CONTEXT_PERMA_PIN		11
 #define CONTEXT_IS_PARKING		12
+#define CONTEXT_EXITING			13
 
 	struct {
 		u64 timeout_us;
@@ -195,8 +201,6 @@ struct intel_context {
 		 * context's submissions is complete.
 		 */
 		struct i915_sw_fence blocked;
-		/** @number_committed_requests: number of committed requests */
-		int number_committed_requests;
 		/** @requests: list of active requests on this context */
 		struct list_head requests;
 		/** @prio: the context's current guc priority */
@@ -206,6 +210,11 @@ struct intel_context {
 		 * each priority bucket
 		 */
 		u32 prio_count[GUC_CLIENT_PRIORITY_NUM];
+		/**
+		 * @sched_disable_delay_work: worker to disable scheduling on this
+		 * context
+		 */
+		struct delayed_work sched_disable_delay_work;
 	} guc_state;
 
 	struct {
